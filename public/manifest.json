@@ -1,0 +1,21 @@
+{
+  "name": "DisasterGuard — Disaster Early Warning & Emergency Response",
+  "short_name": "DisasterGuard",
+  "description": "AI-powered disaster early warning, alert and emergency response platform. Know Earlier. Prepare Faster. Stay Safer.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#060b16",
+  "theme_color": "#060b16",
+  "orientation": "portrait-primary",
+  "categories": ["utilities", "safety", "weather"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Live Alerts", "url": "/dashboard/alerts", "description": "View current alerts" },
+    { "name": "Emergency Mode", "url": "/emergency", "description": "Open emergency mode" },
+    { "name": "Guardian AI", "url": "/dashboard/assistant", "description": "Ask Guardian AI" }
+  ]
+}

@@ -1,0 +1,280 @@
+// DisasterGuard — Prisma schema
+// NOTE: Environment runs SQLite for the sandbox. The schema is intentionally
+// written with plain String fields (no enums, no scalar lists) so it can be
+// migrated to PostgreSQL by only switching the datasource provider.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============ AUTH / USERS ============
+
+model User {
+  id             String         @id @default(cuid())
+  email          String         @unique
+  passwordHash   String?
+  name           String
+  role           String         @default("USER") // USER | ADMIN
+  status         String         @default("ACTIVE") // ACTIVE | SUSPENDED
+  emailVerified  Boolean        @default(false)
+  onboarded      Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  profile               Profile?
+  alertSubscriptions    AlertSubscription[]
+  notifications         Notification[]
+  disasterReports       DisasterReport[]
+  emergencyContacts     EmergencyContact[]
+  riskAssessments       RiskAssessment[]
+  preparednessItems     PreparednessChecklist[]
+  adminActions          AdminAction[]
+  alertsCreated         Alert[]
+  sessions              UserSession[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model Profile {
+  id                    String  @id @default(cuid())
+  userId                String  @unique
+  user                  User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  city                  String?
+  region                String?
+  country               String  @default("IN")
+  preferredLanguage     String  @default("en")
+  phone                 String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  lat                   Float?
+  lng                   Float?
+  locationSource        String  @default("MANUAL") // MANUAL | GEO
+  notifyInApp           Boolean @default(true)
+  notifyEmail           Boolean @default(true)
+  notifyPush            Boolean @default(false)
+  notifySms             Boolean @default(false)
+  updatedAt             DateTime @updatedAt
+}
+
+model UserSession {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token       String   @unique
+  userAgent   String?
+  ip          String?
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  revoked     Boolean  @default(false)
+
+  @@index([userId])
+}
+
+// ============ ALERTS ============
+
+model Alert {
+  id                 String   @id @default(cuid())
+  disasterType       String // FLOOD | EARTHQUAKE | CYCLONE | WILDFIRE | STORM | EXTREME_RAIN | HEATWAVE | LANDSLIDE | TSUNAMI | LIGHTNING | INDUSTRIAL | OTHER
+  title              String
+  description        String
+  severity           String   // LOW | MODERATE | HIGH | CRITICAL
+  state              String   @default("WATCH") // NORMAL | WATCH | WARNING | CRITICAL
+  status             String   @default("ACTIVE") // ACTIVE | RESOLVED | CANCELLED | EXPIRED
+  locationName       String
+  region             String
+  latitude           Float
+  longitude          Float
+  radiusKm           Float    @default(25)
+  startTime          DateTime @default(now())
+  endTime            DateTime?
+  source             String   @default("DisasterGuard Simulation Engine")
+  sourceType         String   @default("SIMULATED") // SIMULATED | OFFICIAL_API | SENSOR | COMMUNITY | MANUAL
+  confidence         Int      @default(70) // 0-100
+  verificationStatus String   @default("UNVERIFIED") // VERIFIED | UNVERIFIED | PENDING
+  isSimulated        Boolean  @default(true)
+  recommendedActionsJson String @default("[]") // JSON string array
+  affectedAreasJson  String   @default("[]") // JSON string array
+  whatHappened       String?
+  whatNext           String?
+  dosJson            String   @default("[]")
+  dontsJson          String   @default("[]")
+  createdBy          String?
+  creator            User?    @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  notifications Notification[]
+
+  @@index([status])
+  @@index([severity])
+  @@index([disasterType])
+  @@index([region])
+  @@index([startTime])
+}
+
+model AlertSubscription {
+  id           String  @id @default(cuid())
+  userId       String
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  disasterType String
+  minSeverity  String  @default("WATCH")
+  channelsJson String  @default("[\"IN_APP\",\"EMAIL\"]")
+  enabled      Boolean @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, disasterType])
+  @@index([userId])
+}
+
+// ============ NOTIFICATIONS ============
+
+model Notification {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alertId     String?
+  alert       Alert?    @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  channel     String    @default("IN_APP") // IN_APP | EMAIL | PUSH | SMS
+  title       String
+  body        String
+  severity    String    @default("MODERATE")
+  read        Boolean   @default(false)
+  deliveryStatus String @default("SENT") // QUEUED | SENT | DELIVERED | FAILED | READ
+  deliveredAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId, read])
+  @@index([alertId])
+}
+
+// ============ EMERGENCY CONTACTS ============
+
+model EmergencyContact {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  relationship String  @default("FAMILY") // FAMILY | FRIEND | NEIGHBOR | OFFICIAL | OTHER
+  phone       String
+  email       String?
+  isPrimary   Boolean  @default(false)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// ============ COMMUNITY ============
+
+model DisasterReport {
+  id           String    @id @default(cuid())
+  userId       String?
+  user         User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  reporterName String
+  reportType   String // FLOODING | ROAD_BLOCKAGE | FIRE | FALLEN_TREE | LANDSLIDE | INFRASTRUCTURE | OTHER
+  description  String
+  locationName String
+  latitude     Float?
+  longitude    Float?
+  severity     String    @default("MODERATE") // LOW | MODERATE | HIGH | CRITICAL
+  photoData    String?   // base64 data URL (validated, max ~2MB)
+  status       String    @default("PENDING") // PENDING | VERIFIED | REJECTED | RESOLVED
+  reviewedBy   String?
+  reviewNote   String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status])
+  @@index([reportType])
+}
+
+model Shelter {
+  id           String  @id @default(cuid())
+  name         String
+  type         String  @default("RELIEF_CAMP") // RELIEF_CAMP | SCHOOL | COMMUNITY_HALL | HOSPITAL | OPEN_GROUND
+  address      String
+  city         String
+  region       String
+  latitude     Float
+  longitude    Float
+  capacity     Int     @default(100)
+  currentLoad  Int     @default(0)
+  facilitiesJson String @default("[]") // JSON string array
+  contactPhone String?
+  isActive     Boolean @default(true)
+
+  @@index([city])
+}
+
+// ============ RISK & READINESS ============
+
+model RiskAssessment {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  locationName String
+  disasterType String
+  conditionsText String
+  riskScore   Int // 0-100
+  riskLevel   String // LOW | MODERATE | HIGH | CRITICAL
+  factorsJson String   @default("[]")
+  actionsJson String   @default("[]")
+  dataBasis   String   @default("MODEL") // VERIFIED_DATA | MODEL | DEMO
+  generatedBy String   @default("disasterguard-heuristic-v1") // or "guardian-ai"
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+}
+
+model PreparednessChecklist {
+  id        String  @id @default(cuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  itemKey   String // EMERGENCY_KIT, WATER, FIRST_AID, TORCH, POWER_BANK, DOCUMENTS, CONTACTS ...
+  label     String
+  category  String  @default("SUPPLIES") // SUPPLIES | DOCUMENTS | PLANNING
+  checked   Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, itemKey])
+  @@index([userId])
+}
+
+// ============ ADMIN / AUDIT ============
+
+model AdminAction {
+  id         String   @id @default(cuid())
+  adminId    String?
+  admin      User?    @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  action     String // CREATE_ALERT | UPDATE_ALERT | DELETE_ALERT | SIMULATE_ALERT | VERIFY_REPORT | REJECT_REPORT | RESOLVE_REPORT | SUSPEND_USER | ACTIVATE_USER | SEND_NOTIFICATION | CHANGE_ROLE
+  targetType String
+  targetId   String?
+  details    String?
+  createdAt  DateTime @default(now())
+
+  @@index([adminId])
+}
+
+// ============ DATA PROVIDER REGISTRY (integration-ready) ============
+
+model ProviderFeed {
+  id          String   @id @default(cuid())
+  providerKey String   @unique // WEATHER | EARTHQUAKE | FLOOD | SATELLITE | RIVER_SENSOR | SEISMIC | OFFICIAL_FEED
+  name        String
+  kind        String   @default("MOCK") // MOCK | LIVE
+  endpoint    String?
+  lastSyncAt  DateTime?
+  status      String   @default("HEALTHY") // HEALTHY | DEGRADED | OFFLINE
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
